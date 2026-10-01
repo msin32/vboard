@@ -1,0 +1,58 @@
+# vboard-1 pin constraints  (FPGA: iCE40 HX8K, package CT256, 25 MHz oscillator)
+# These are real, valid HX8K-CT256 balls; the "PCB" they connect to is the mock board.
+set_io clk      J3
+
+set_io led[0]   B5
+set_io led[1]   B4
+set_io led[2]   A2
+set_io led[3]   A1
+set_io led[4]   C5
+set_io led[5]   C4
+set_io led[6]   B3
+set_io led[7]   C3
+
+set_io btn[0]   B1
+set_io btn[1]   B2
+set_io btn[2]   C1
+set_io btn[3]   C2
+
+set_io sw[0]    D1
+set_io sw[1]    D2
+set_io sw[2]    D3
+set_io sw[3]    D4
+set_io sw[4]    D5
+set_io sw[5]    D6
+set_io sw[6]    D7
+set_io sw[7]    D8
+
+# 4-digit multiplexed 7-segment display, all signals active-high
+set_io seg[0]   E2
+set_io seg[1]   E3
+set_io seg[2]   E4
+set_io seg[3]   E5
+set_io seg[4]   E6
+set_io seg[5]   E9
+set_io seg[6]   E10
+set_io dig[0]   F1
+set_io dig[1]   F2
+set_io dig[2]   F3
+set_io dig[3]   F4
+
+# VGA 12-bit, sync active-low, 640x480@60 with pixel clock = clk (25 MHz)
+set_io vga_r[0] G1
+set_io vga_r[1] G2
+set_io vga_r[2] G3
+set_io vga_r[3] G4
+set_io vga_g[0] H1
+set_io vga_g[1] H2
+set_io vga_g[2] H3
+set_io vga_g[3] H4
+set_io vga_b[0] K1
+set_io vga_b[1] K3
+set_io vga_b[2] K4
+set_io vga_b[3] K5
+set_io vga_hs   L1
+set_io vga_vs   L3
+
+set_io uart_tx  M1
+set_io uart_rx  M2
