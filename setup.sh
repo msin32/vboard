@@ -6,10 +6,6 @@
 set -euo pipefail
 TOOLS="${TOOLS_DIR:-$(pwd)/tools}"
 
-if [ -z "${SKIP_PACMAN:-}" ]; then
-  sudo pacman -S --needed --noconfirm base-devel python sdl2-compat
-fi
-
 if [ ! -d "$TOOLS/oss-cad-suite" ]; then
   # Resolve the newest release without the (rate-limited) GitHub API.
   tag=$(curl -sIL -o /dev/null -w '%{url_effective}' \
