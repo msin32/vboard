@@ -1,4 +1,4 @@
-# Board: vboard1 = iCE40 HX8K (CT256) on a mock PCB, 25 MHz oscillator.
+# Board: default = iCE40 HX8K (CT256) on a mock PCB, 25 MHz oscillator.
 # The mock board runs the *bitstream*: icepack -> iceunpack -> icebox_vlog -> Verilator.
 
 FREQ_MHZ ?= 25
