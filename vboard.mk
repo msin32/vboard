@@ -10,7 +10,6 @@
 
 TOP       ?= top
 BUILD     ?= build
-FREQ_MHZ  ?= 25
 # SV_READER: slang (yosys-slang, full SV) | builtin (yosys's read_verilog -sv)
 SV_READER ?= slang
 CYCLES    ?= 3000000
@@ -27,6 +26,7 @@ ifeq ($(strip $(BOARD)),)
   BOARD := default
 endif
 BOARD_DIR := $(BOARDS)/$(BOARD)
+COMMON    := $(abspath $(ROOT)/common)
 PCF    := $(BOARD_DIR)/vboard.pcf
 # simulation models for BRAM etc., added automatically if the netlist contains any
 CELLS  := $(shell yosys-config --datdir)/ice40/cells_sim.v
@@ -51,67 +51,49 @@ else
 endif
 
 .PHONY: all run prog run-rtl shot wave sim clean
-all: $(BUILD)/$(TOP).bin
+# all: $(BUILD)/$(TOP).bin
+.DEFAULT_GOAL := all
 
 $(BUILD):
 	@mkdir -p $@
 
-# ---- synthesis ---------------------------------------------------------------------
-$(BUILD)/$(TOP).json: $(SRC) | $(BUILD)
-	@echo "[yosys]   synthesizing $(TOP) for iCE40"
-	@yosys -q -l $(BUILD)/yosys.log $(YS_PLUGIN) -p "$(YS_READ); synth_ice40 -top $(TOP) -json $@" \
-	  || { tail -20 $(BUILD)/yosys.log; exit 1; }
+# ---- board-specific part: pin file, synthesis/P&R/bitstream recipes, wiring, front panel --------
+# A board.mk must define:
+#   FREQ_MHZ                    default clock constraint for P&R
+#   $(BUILD)/$(TOP).bin         the bitstream (the "all" target)
+#   $(BUILD)/netlist.v          the netlist the mock board simulates in "run" mode
+#   FRONTEND                    the board's SDL front panel (C++)
+#   GATE_FILES / GATE_DEPS      verilator inputs / extra prerequisites for "run" mode
+#   RTL_FILES  / RTL_DEPS       the same for "run-rtl" mode (uses $(BUILD)/rtl.v)
+include $(BOARD_DIR)/board.mk
 
-# ---- place & route against the board's pin constraints -------------------------------
-$(BUILD)/$(TOP).asc: $(BUILD)/$(TOP).json $(PCF)
-	@echo "[nextpnr] place & route: HX8K CT256 @ $(FREQ_MHZ) MHz"
-	@nextpnr-ice40 --hx8k --package ct256 --json $< --pcf $(PCF) --asc $@ \
-	  --freq $(FREQ_MHZ) --log $(BUILD)/nextpnr.log $(NEXTPNR_FLAGS) >/dev/null 2>&1 \
-	  || { grep -E 'ERROR|FAIL' $(BUILD)/nextpnr.log | head; exit 1; }
-	@grep -E 'ICESTORM_(LC|RAM): +[0-9]' $(BUILD)/nextpnr.log | sed 's/^Info: *//; s/^/          /'
-	@grep 'Max frequency' $(BUILD)/nextpnr.log | tail -1 | sed 's/^Info: /          /'
+all: $(BUILD)/$(TOP).bin
 
-# ---- bitstream --------------------------------------------------------------------------
-$(BUILD)/$(TOP).bin: $(BUILD)/$(TOP).asc
-	@icepack $< $@
-	@echo "[icepack] $@ ($$(stat -c %s $@) bytes)"
+# ---- RTL netlist (yosys elaborates any front-end to plain Verilog) ----------------------------
+$(BUILD)/rtl.v: $(SRC) | $(BUILD)
+	@yosys -q $(YS_PLUGIN) -p "$(YS_READ); proc; opt_clean; write_verilog -noattr $@" || exit 1
 
-# ---- mock board: bitstream -> netlist -> Verilator model + SDL front panel --------
-$(BUILD)/netlist.v: $(BUILD)/$(TOP).bin $(PCF)
-	@iceunpack $< $(BUILD)/unpacked.asc
-	@icebox_vlog -s -S -n chip -p $(PCF) $(BUILD)/unpacked.asc | python3 $(BOARD_DIR)/fixnetlist.py > $@
-
-$(BUILD)/pcb_conn.vh: $(PCF)
-	@awk '$$1=="set_io" && $$2!="clk" { n=$$2; if (n ~ /\[/) printf ", .\\%s (%s)\n", n, n; else printf ", .%s (%s)\n", n, n }' $< > $@
-
+# ---- mock board: verilate netlist + wiring + front panel ----------------------------------
 # $(1)=obj dir  $(2)=extra verilator flags  $(3)=extra cflags  $(4)=design files
 define VERILATE
 	@verilator --cc --exe --build -j 0 -Wno-fatal -Wno-lint -Wno-style --top-module pcb \
-	  -I$(BUILD) -Mdir $(BUILD)/$(1) $(2) -CFLAGS "-O2 $(SDL_CFLAGS) $(3)" -LDFLAGS "$(SDL_LIBS)" \
-	  -o vboard $(BOARD_DIR)/pcb.v $(BOARD_DIR)/vboard.cpp $(4) >$(BUILD)/$(1).log 2>&1 \
+	  -I$(BUILD) -Mdir $(BUILD)/$(1) $(2) -CFLAGS "-O2 -I$(COMMON) $(SDL_CFLAGS) $(3)" -LDFLAGS "$(SDL_LIBS)" \
+	  -o vboard $(FRONTEND) $(4) >$(BUILD)/$(1).log 2>&1 \
 	  || { tail -30 $(BUILD)/$(1).log; exit 1; }
 endef
 
-BOARD_DEPS := $(BOARD_DIR)/pcb.v $(BOARD_DIR)/vboard.cpp
-NETLIST    := $(BUILD)/netlist.v $$(grep -q '^SB_' $(BUILD)/netlist.v && echo -DICE40_HX $(CELLS))
-
-$(BUILD)/vboard: $(BUILD)/netlist.v $(BUILD)/pcb_conn.vh $(BOARD_DEPS)
-	@echo "[board]   loading bitstream onto vboard-1"
-	$(call VERILATE,obj,,,$(NETLIST))
+$(BUILD)/vboard: $(BUILD)/netlist.v $(GATE_DEPS) $(FRONTEND)
+	@echo "[board]   loading design onto $(BOARD)"
+	$(call VERILATE,obj,$(GATE_FLAGS),,$(GATE_FILES))
 	@cp $(BUILD)/obj/vboard $@
 
-$(BUILD)/vboard_trace: $(BUILD)/netlist.v $(BUILD)/pcb_conn.vh $(BOARD_DEPS)
-	$(call VERILATE,obj_trace,--trace,-DWITH_VCD,$(NETLIST))
+$(BUILD)/vboard_trace: $(BUILD)/netlist.v $(GATE_DEPS) $(FRONTEND)
+	$(call VERILATE,obj_trace,--trace $(GATE_FLAGS),-DWITH_VCD,$(GATE_FILES))
 	@cp $(BUILD)/obj_trace/vboard $@
 
-# fast mode: skip place&route, simulate the RTL itself on the same board
-$(BUILD)/rtl.v: $(SRC) | $(BUILD)
-	@yosys -q $(YS_PLUGIN) -p "$(YS_READ); proc; opt_clean; write_verilog -noattr $@" \
-	  || exit 1
-
-$(BUILD)/vboard_rtl: $(BUILD)/rtl.v $(BOARD_DEPS)
-	@echo "[board]   RTL mode (not the bitstream!)"
-	$(call VERILATE,obj_rtl_board,-DRTL -DTOP_MODULE=$(TOP),,$(BUILD)/rtl.v)
+$(BUILD)/vboard_rtl: $(BUILD)/rtl.v $(RTL_DEPS) $(FRONTEND)
+	@echo "[board]   RTL mode (simulating source)"
+	$(call VERILATE,obj_rtl_board,$(RTL_FLAGS),,$(RTL_FILES))
 	@cp $(BUILD)/obj_rtl_board/vboard $@
 
 run prog: $(BUILD)/vboard
