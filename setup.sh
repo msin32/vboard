@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# One-time setup for Arch Linux.
-#   pacman : compiler, make, python, SDL2 (for the board window)
-#   tarball: YosysHQ OSS CAD Suite = yosys (+ghdl and slang plugins), nextpnr, IceStorm,
-#            verilator, GHDL, GTKWave, iverilog, cocotb ... in one self-contained folder.
+if [[ $(command -v g++ make python sdl2-config) ]]; then
+  echo "Installing..."
+else
+  echo "ERROR: ensure g++, make, python, sdl2 installed"
+fi
+
 set -euo pipefail
+# folder to extract tools: YosysHQ OSS CAD Suite = yosys (+ghdl and slang plugins), nextpnr, IceStorm, verilator, GHDL, GTKWave, iverilog, cocotb, etc.
 TOOLS="${TOOLS_DIR:-$(pwd)/tools}"
 
 if [ ! -d "$TOOLS/oss-cad-suite" ]; then
-  # Resolve the newest release without the (rate-limited) GitHub API.
+  # Resolve the newest release
   tag=$(curl -sIL -o /dev/null -w '%{url_effective}' \
         https://github.com/YosysHQ/oss-cad-suite-build/releases/latest | sed 's#.*/tag/##')
   html=$(curl -sL "https://github.com/YosysHQ/oss-cad-suite-build/releases/expanded_assets/$tag")
