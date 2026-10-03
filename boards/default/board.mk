@@ -4,13 +4,13 @@
 FREQ_MHZ ?= 25
 PCF      := $(BOARD_DIR)/vboard.pcf
 FRONTEND := $(BOARD_DIR)/frontend.cpp
-CELLS     = $(shell $(SUITE_ENV) yosys-config --datdir)/ice40/cells_sim.v
+CELLS    := $(shell yosys-config --datdir)/ice40/cells_sim.v
 
 # ---- 1. synthesis ---------------------------------------------------------------------
 $(BUILD)/$(TOP).json: $(SRC) | $(BUILD)
 	@echo "[yosys]   synthesizing $(TOP) for iCE40   ($$(command -v yosys))"
 	@yosys -q -l $(BUILD)/yosys.log $(YS_PLUGIN) -p "$(YS_READ); synth_ice40 -top $(TOP) -json $@" \
-	  || $(YS_FAIL)
+	  || { tail -20 $(BUILD)/yosys.log; exit 1; }
 
 # ---- 2. place & route against the board's pin constraints -------------------------------
 $(BUILD)/$(TOP).asc: $(BUILD)/$(TOP).json $(PCF)
@@ -36,7 +36,7 @@ $(BUILD)/pcb_conn.vh: $(PCF) | $(BUILD)
 	@awk '$$1=="set_io" && $$2!="clk" { n=$$2; if (n ~ /\[/) printf ", .\\%s (%s)\n", n, n; else printf ", .%s (%s)\n", n, n }' $< > $@
 
 # BRAM etc. need the iCE40 simulation models, added automatically if the netlist has any
-GATE_FILES  = $(BOARD_DIR)/pcb.v $(BUILD)/netlist.v $$(grep -q '^SB_' $(BUILD)/netlist.v && echo -DICE40_HX $(CELLS))
+GATE_FILES := $(BOARD_DIR)/pcb.v $(BUILD)/netlist.v $$(grep -q '^SB_' $(BUILD)/netlist.v && echo -DICE40_HX $(CELLS))
 GATE_DEPS  := $(BUILD)/pcb_conn.vh $(BOARD_DIR)/pcb.v
 RTL_FILES  := $(BOARD_DIR)/pcb.v $(BUILD)/rtl.v
 RTL_DEPS   := $(BOARD_DIR)/pcb.v
