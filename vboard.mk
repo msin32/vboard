@@ -27,9 +27,6 @@ ifeq ($(strip $(BOARD)),)
 endif
 BOARD_DIR := $(BOARDS)/$(BOARD)
 COMMON    := $(abspath $(ROOT)/common)
-PCF    := $(BOARD_DIR)/vboard.pcf
-# simulation models for BRAM etc., added automatically if the netlist contains any
-CELLS  := $(shell yosys-config --datdir)/ice40/cells_sim.v
 SDL_CFLAGS := $(shell sdl2-config --cflags)
 SDL_LIBS   := $(shell sdl2-config --libs)
 
