@@ -17,7 +17,7 @@
 
 using Clock = std::chrono::steady_clock;
 static constexpr double   CLK_HZ = 25e6;
-static constexpr int      WIN_W = 960, WIN_H = 520, VW = 640, VH = 480, PX = 690;
+static constexpr int      WIN_W = 1080, WIN_H = 600, VW = 640, VH = 480, PX = 690;
 static constexpr int      BIT_CYCLES = 217;              // 25 MHz / 115200 baud
 
 static Vpcb*   dut;
