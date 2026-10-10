@@ -20,10 +20,10 @@ TB_TOP    ?= tb
 
 ROOT   := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 BOARDS  := $(ROOT)/boards
-# change board with: make run BOARD=[board]
-# Use default if BOARD is undefined or empty.
-ifeq ($(strip $(BOARD)),)
-  BOARD := default
+# Set BOARD in project Makefile
+BOARD_LIST := $(sort $(notdir $(patsubst %/,%,$(dir $(wildcard $(BOARDS)/*/board.mk)))))
+ifeq ($(filter $(BOARD),$(BOARD_LIST)),)
+  $(error BOARD is '$(BOARD)'. Set `BOARD = NAME` in your project Makefile, before including vboard.mk. Available: $(BOARD_LIST))
 endif
 BOARD_DIR := $(BOARDS)/$(BOARD)
 COMMON    := $(abspath $(ROOT)/common)
